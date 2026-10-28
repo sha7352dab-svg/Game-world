@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber-Run 3D: Neon Collector</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap');
+
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Rajdhani', sans-serif;
+            background-color: #05050d;
+        }
+
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* Glassmorphism styling */
+        .glass-panel {
+            background: rgba(15, 15, 30, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 240, 255, 0.15);
+        }
+
+        .glass-btn {
+            background: rgba(0, 240, 255, 0.15);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 240, 255, 0.4);
+            transition: all 0.2s ease;
+        }
+
+        .glass-btn:active {
+            transform: scale(0.95);
+            background: rgba(0, 240, 255, 0.4);
+        }
+
+        /* Neon Glow Text Effects */
+        .text-glow-cyan {
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.4);
+        }
+
+        .text-glow-magenta {
+            text-shadow: 0 0 10px rgba(255, 0, 128, 0.8), 0 0 20px rgba(255, 0, 128, 0.4);
+        }
+
+        .text-glow-gold {
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8), 0 0 20px rgba(255, 215, 0, 0.4);
+        }
+
+        /* D-Pad Buttons for Touch */
+        .touch-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(5px);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .touch-btn:active {
+            background: rgba(0, 240, 255, 0.4);
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body class="select-none overflow-hidden">
+
+    <!-- Canvas Container -->
+    <div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+    <!-- UI Overlay / HUD -->
+    <div id="hud" class="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 md:p-6">
+        <!-- Top Stats Bar -->
+        <div class="flex justify-between items-start w-full">
+            <!-- Left Stats: Health & Score -->
+            <div class="flex flex-col gap-3">
+                <!-- Health Bar -->
+                <div class="glass-panel px-4 py-2 rounded-xl flex items-center gap-3">
+                    <span class="text-xs md:text-sm font-orbitron font-bold text-cyan-400">HEALTH</span>
+                    <div class="w-32 md:w-48 h-3 bg-gray-900 rounded-full overflow-hidden p-0.5 border border-cyan-500/30">
+                        <div id="health-bar" class="h-full bg-gradient-to-r from-cyan-500 to-pink-500 rounded-full transition-all duration-300" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <!-- Score & Highscore -->
+                <div class="glass-panel px-4 py-2 rounded-xl flex items-center gap-4">
+                    <div>
+                        <div class="text-[10px] font-orbitron text-gray-400">SCORE</div>
+                        <div id="score-text" class="text-xl md:text-2xl font-orbitron font-bold text-yellow-400 text-glow-gold">0 / 15</div>
+                    </div>
+                    <div class="h-6 w-[1px] bg-white/10"></div>
+                    <div>
+                        <div class="text-[10px] font-orbitron text-gray-400">HIGH SCORE</div>
+                        <div id="high-score-text" class="text-sm md:text-base font-orbitron text-gray-200">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Stats: Timer & Sound -->
+            <div class="flex flex-col items-end gap-3">
+                <div class="glass-panel px-5 py-2 rounded-xl text-center">
+                    <div class="text-[10px] font-orbitron text-gray-400">TIME REMAINING</div>
+                    <div id="timer-text" class="text-2xl md:text-3xl font-orbitron font-black text-pink-500 text-glow-magenta">60s</div>
+                </div>
+                <button id="mute-btn" class="pointer-events-auto glass-btn p-2 rounded-lg text-white text-xs font-orbitron">
+                    🔊 SOUND: ON
+                </button>
+            </div>
+        </div>
+
+        <!-- Touch Controls (Mobile) -->
+        <div id="mobile-controls" class="pointer-events-auto flex justify-between items-end pb-4 md:hidden">
+            <!-- D-Pad -->
+            <div class="relative w-36 h-36">
+                <button id="btn-up" class="touch-btn absolute top-0 left-12 w-12 h-12 text-xl">▲</button>
+                <button id="btn-left" class="touch-btn absolute top-12 left-0 w-12 h-12 text-xl">◄</button>
+                <button id="btn-right" class="touch-btn absolute top-12 right-0 w-12 h-12 text-xl">►</button>
+                <button id="btn-down" class="touch-btn absolute bottom-0 left-12 w-12 h-12 text-xl">▼</button>
+            </div>
+            <!-- Jump Button -->
+            <button id="btn-jump" class="touch-btn w-20 h-20 bg-pink-500/20 border-pink-500/50 text-pink-400 font-orbitron font-bold text-sm tracking-wider">JUMP</button>
+        </div>
+    </div>
+
+    <!-- Start / Game Over / Victory Screen -->
+    <div id="modal-overlay" class="absolute inset-0 z-20 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+        <!-- Start Screen -->
+        <div id="start-card" class="glass-panel p-8 md:p-12 rounded-2xl max-w-md w-full text-center flex flex-col items-center">
+            <h1 class="text-4xl md:text-5xl font-orbitron font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-500 to-yellow-400 mb-2 text-glow-cyan">CYBER RUN 3D</h1>
+            <p class="text-gray-300 font-medium mb-6 text-sm md:text-base">Collect all glowing power-orbs on the neon cyber-grid before time runs out! Avoid red laser sentries.</p>
+            
+            <div class="w-full bg-white/5 rounded-xl p-4 mb-6 text-left text-xs text-gray-300 space-y-2 border border-white/10">
+                <div class="flex justify-between"><span class="font-bold text-cyan-400">MOVE:</span> <span>WASD / Arrow Keys / On-Screen D-Pad</span></div>
+                <div class="flex justify-between"><span class="font-bold text-pink-400">JUMP:</span> <span>SPACEBAR / Jump Button</span></div>
+                <div class="flex justify-between"><span class="font-bold text-yellow-400">OBJECTIVE:</span> <span>Collect 15 Orbs</span></div>
+            </div>
+
+            <button id="start-btn" class="pointer-events-auto w-full py-4 rounded-xl font-orbitron font-bold text-lg text-black bg-gradient-to-r from-cyan-400 to-pink-500 hover:opacity-90 transition duration-300 shadow-lg shadow-cyan-500/30">
+                START MISSION
+            </button>
+        </div>
+
+        <!-- Game Over / Victory Screen (Hidden initially) -->
+        <div id="end-card" class="glass-panel p-8 md:p-12 rounded-2xl max-w-md w-full text-center flex flex-col items-center hidden">
+            <h2 id="end-title" class="text-4xl font-orbitron font-black mb-2">MISSION FAILED</h2>
+            <p id="end-desc" class="text-gray-300 mb-6 text-sm">You ran out of energy!</p>
+            
+            <div class="w-full bg-white/5 rounded-xl p-4 mb-6 text-center border border-white/10">
+                <div class="text-xs font-orbitron text-gray-400">FINAL SCORE</div>
+                <div id="end-score" class="text-3xl font-orbitron font-bold text-yellow-400 text-glow-gold">0</div>
+            </div>
+
+            <button id="restart-btn" class="pointer-events-auto w-full py-4 rounded-xl font-orbitron font-bold text-lg text-black bg-gradient-to-r from-cyan-400 to-pink-500 hover:opacity-90 transition duration-300 shadow-lg shadow-pink-500/30">
+                PLAY AGAIN
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Logic & Three.js Code -->
+    <script>
+        // --- Web Audio API Synthesizer ---
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+
+            playJump() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playCoin() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
+                osc.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.08); // E5
+                osc.frequency.setValueAtTime(783.99, this.ctx.currentTime + 0.16); // G5
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            }
+
+            playHit() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playWin() {
+                if (this.muted || !this.ctx) return;
+                const notes = [440, 554.37, 659.25, 880];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.1);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime + idx * 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.1 + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.1);
+                    osc.stop(this.ctx.currentTime + idx * 0.1 + 0.3);
+                });
+            }
+        }
+
+        const sound = new SoundFX();
+
+        // --- Game Variables & Config ---
+        const TOTAL_ORBS = 15;
+        const GAME_TIME = 60;
+        let score = 0;
+        let highScore = localStorage.getItem('cyber_run_highscore') || 0;
+        let health = 100;
+        let timeLeft = GAME_TIME;
+        let gameActive = false;
+        let timerInterval = null;
+
+        // --- Input State ---
+        const keys = { forward: false, backward: false, left: false, right: false, jump: false };
+
+        // --- Three.js Globals ---
+        let scene, camera, renderer;
+        let player, playerBody;
+        let playerVelocity = new THREE.Vector3();
+        let isGrounded = false;
+        const gravity = -32;
+        const moveSpeed = 12;
+        const jumpForce = 13;
+
+        let platforms = [];
+        let collectibles = [];
+        let hazards = [];
+
+        // Camera Offset
+        const cameraOffset = new THREE.Vector3(0, 8, 14);
+
+        // UI Element References
+        const scoreText = document.getElementById('score-text');
+        const highScoreText = document.getElementById('high-score-text');
+        const healthBar = document.getElementById('health-bar');
+        const timerText = document.getElementById('timer-text');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const startCard = document.getElementById('start-card');
+        const endCard = document.getElementById('end-card');
+        const endTitle = document.getElementById('end-title');
+        const endDesc = document.getElementById('end-desc');
+        const endScore = document.getElementById('end-score');
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const muteBtn = document.getElementById('mute-btn');
+
+        highScoreText.textContent = highScore;
+
+        // --- Initialize Three.js World ---
+        function initEngine() {
+            const container = document.getElementById('canvas-container');
+
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x05050d);
+            scene.fog = new THREE.FogExp2(0x05050d, 0.02);
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Lighting setup
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0x00f0ff, 0.8);
+            dirLight.position.set(20, 40, 20);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 100;
+            const d = 30;
+            dirLight.shadow.camera.left = -d;
+            dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d;
+            dirLight.shadow.camera.bottom = -d;
+            scene.add(dirLight);
+
+            const pointLight = new THREE.PointLight(0xff0080, 1.5, 50);
+            pointLight.position.set(0, 10, 0);
+            scene.add(pointLight);
+
+            // Create Level World
+            buildEnvironment();
+
+            // Create Player
+            createPlayer();
+
+            // Handle Window Resize
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        // --- Environment & Level Construction ---
+        function buildEnvironment() {
+            // Main Arena Floor (Low-Poly Cyber Grid)
+            const floorGeo = new THREE.BoxGeometry(50, 2, 50);
+            const floorMat = new THREE.MeshStandardMaterial({
+                color: 0x0a0a1a,
+                roughness: 0.3,
+                metalness: 0.8
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.position.y = -1;
+            floor.receiveShadow = true;
+            scene.add(floor);
+            platforms.push(floor);
+
+            // Cyber Grid Lines Helper
+            const gridHelper = new THREE.GridHelper(50, 50, 0x00f0ff, 0xff0080);
+            gridHelper.position.y = 0.01;
+            scene.add(gridHelper);
+
+            // Floating Platforms
+            const platformConfigs = [
+                { x: -12, y: 3, z: -10, w: 8, d: 8 },
+                { x: 12, y: 4, z: -12, w: 10, d: 6 },
+                { x: 0, y: 6, z: -18, w: 12, d: 6 },
+                { x: -15, y: 5, z: 10, w: 8, d: 8 },
+                { x: 15, y: 3, z: 8, w: 8, d: 8 },
+                { x: 0, y: 4, z: 12, w: 10, d: 6 }
+            ];
+
+            platformConfigs.forEach(cfg => {
+                const platGeo = new THREE.BoxGeometry(cfg.w, 1, cfg.d);
+                const platMat = new THREE.MeshStandardMaterial({
+                    color: 0x12122b,
+                    roughness: 0.2,
+                    metalness: 0.7,
+                    emissive: 0x00f0ff,
+                    emissiveIntensity: 0.15
+                });
+                const plat = new THREE.Mesh(platGeo, platMat);
+                plat.position.set(cfg.x, cfg.y, cfg.z);
+                plat.receiveShadow = true;
+                plat.castShadow = true;
+                scene.add(plat);
+                platforms.push(plat);
+
+                // Add glowing outline edge to floating platforms
+                const edgesGeo = new THREE.EdgesGeometry(platGeo);
+                const edgesMat = new THREE.LineBasicMaterial({ color: 0x00f0ff });
+                const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
+                plat.add(wireframe);
+            });
+
+            // Spawn Collectibles (Glowing Orbs)
+            spawnCollectibles();
+
+            // Spawn Moving Hazards (Red Sentries)
+            spawnHazards();
+        }
+
+        // --- Create Player Mesh ---
+        function createPlayer() {
+            const group = new THREE.Group();
+
+            // Core Body (Glowing Neon Sphere/Cube Hybrid)
+            const bodyGeo = new THREE.BoxGeometry(1.4, 1.4, 1.4);
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: 0x00f0ff,
+                roughness: 0.1,
+                metalness: 0.9,
+                emissive: 0x00f0ff,
+                emissiveIntensity: 0.5
+            });
+            playerBody = new THREE.Mesh(bodyGeo, bodyMat);
+            playerBody.castShadow = true;
+            group.add(playerBody);
+
+            // Inner Core Light
+            const coreGeo = new THREE.OctahedronGeometry(0.5);
+            const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const core = new THREE.Mesh(coreGeo, coreMat);
+            group.add(core);
+
+            // Outer Wireframe Halo
+            const haloGeo = new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(1.1, 1));
+            const haloMat = new THREE.LineBasicMaterial({ color: 0xff0080 });
+            const halo = new THREE.LineSegments(haloGeo, haloMat);
+            halo.name = "halo";
+            group.add(halo);
+
+            group.position.set(0, 1.5, 20);
+            scene.add(group);
+            player = group;
+        }
+
+        // --- Collectibles Spawn Logic ---
+        function spawnCollectibles() {
+            // Remove existing
+            collectibles.forEach(c => scene.remove(c.mesh));
+            collectibles = [];
+
+            const orbGeo = new THREE.OctahedronGeometry(0.6, 2);
+            const orbMat = new THREE.MeshStandardMaterial({
+                color: 0xffd700,
+                emissive: 0xffa500,
+                emissiveIntensity: 0.8,
+                roughness: 0.1,
+                metalness: 1.0
+            });
+
+            const positions = [
+                // Ground Orbs
+                { x: -18, y: 1.2, z: -18 }, { x: 18, y: 1.2, z: -18 },
+                { x: -18, y: 1.2, z: 18 }, { x: 18, y: 1.2, z: 18 },
+                { x: 0, y: 1.2, z: 0 }, { x: -8, y: 1.2, z: 0 }, { x: 8, y: 1.2, z: 0 },
+                { x: 0, y: 1.2, z: -10 }, { x: 0, y: 1.2, z: 10 },
+                // Platform Orbs
+                { x: -12, y: 5.0, z: -10 }, { x: 12, y: 6.0, z: -12 },
+                { x: 0, y: 8.0, z: -18 }, { x: -15, y: 7.0, z: 10 },
+                { x: 15, y: 5.0, z: 8 }, { x: 0, y: 6.0, z: 12 }
+            ];
+
+            positions.forEach(pos => {
+                const mesh = new THREE.Mesh(orbGeo, orbMat);
+                mesh.position.set(pos.x, pos.y, pos.z);
+                mesh.castShadow = true;
+                
+                // Add Light to each orb
+                const light = new THREE.PointLight(0xffd700, 0.8, 4);
+                mesh.add(light);
+
+                scene.add(mesh);
+                collectibles.push({ mesh: mesh, basePositionY: pos.y });
+            });
+        }
+
+        // --- Moving Hazards (Enemies) ---
+        function spawnHazards() {
+            hazards.forEach(h => scene.remove(h.mesh));
+            hazards = [];
+
+            const hazardGeo = new THREE.ConeGeometry(0.8, 1.6, 4);
+            const hazardMat = new THREE.MeshStandardMaterial({
+                color: 0xff0044,
+                emissive: 0xff0000,
+                emissiveIntensity: 0.8,
+                roughness: 0.2
+            });
+
+            const configs = [
+                { startX: -20, endX: 20, y: 1, z: 5, speed: 0.15 },
+                { startX: -20, endX: 20, y: 1, z: -5, speed: 0.2 },
+                { startX: -8, endX: 8, y: 1, z: -14, speed: 0.12 },
+                { startX: -10, endX: 10, y: 4.8, z: 12, speed: 0.1 }
+            ];
+
+            configs.forEach(cfg => {
+                const mesh = new THREE.Mesh(hazardGeo, hazardMat);
+                mesh.rotation.x = Math.PI; // Point upside down
+                mesh.position.set(cfg.startX, cfg.y, cfg.z);
+                mesh.castShadow = true;
+                scene.add(mesh);
+
+                hazards.push({
+                    mesh: mesh,
+                    startX: cfg.startX,
+                    endX: cfg.endX,
+                    speed: cfg.speed,
+                    dir: 1
+                });
+            });
+        }
+
+        // --- Controls & Input Handling ---
+        function setupControls() {
+            window.addEventListener('keydown', (e) => {
+                if (!gameActive) return;
+                switch (e.code) {
+                    case 'KeyW': case 'ArrowUp': keys.forward = true; break;
+                    case 'KeyS': case 'ArrowDown': keys.backward = true; break;
+                    case 'KeyA': case 'ArrowLeft': keys.left = true; break;
+                    case 'KeyD': case 'ArrowRight': keys.right = true; break;
+                    case 'Space': 
+                        if (isGrounded) {
+                            playerVelocity.y = jumpForce;
+                            isGrounded = false;
+                            sound.playJump();
+                        }
+                        break;
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                switch (e.code) {
+                    case 'KeyW': case 'ArrowUp': keys.forward = false; break;
+                    case 'KeyS': case 'ArrowDown': keys.backward = false; break;
+                    case 'KeyA': case 'ArrowLeft': keys.left = false; break;
+                    case 'KeyD': case 'ArrowRight': keys.right = false; break;
+                }
+            });
+
+            // Touch Controls Mapping
+            const bindTouch = (id, keyName) => {
+                const btn = document.getElementById(id);
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+                btn.addEventListener('mousedown', () => { keys[keyName] = true; });
+                btn.addEventListener('mouseup', () => { keys[keyName] = false; });
+            };
+
+            bindTouch('btn-up', 'forward');
+            bindTouch('btn-down', 'backward');
+            bindTouch('btn-left', 'left');
+            bindTouch('btn-right', 'right');
+
+            const jumpBtn = document.getElementById('btn-jump');
+            const handleJump = (e) => {
+                if (e) e.preventDefault();
+                if (gameActive && isGrounded) {
+                    playerVelocity.y = jumpForce;
+                    isGrounded = false;
+                    sound.playJump();
+                }
+            };
+            jumpBtn.addEventListener('touchstart', handleJump);
+            jumpBtn.addEventListener('mousedown', handleJump);
+
+            // Mute Toggle
+            muteBtn.addEventListener('click', () => {
+                sound.muted = !sound.muted;
+                muteBtn.textContent = sound.muted ? "🔇 SOUND: OFF" : "🔊 SOUND: ON";
+            });
+
+            // Buttons
+            startBtn.addEventListener('click', startGame);
+            restartBtn.addEventListener('click', startGame);
+        }
+
+        // --- Resize Event ---
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Game State Management ---
+        function startGame() {
+            sound.init();
+            score = 0;
+            health = 100;
+            timeLeft = GAME_TIME;
+            gameActive = true;
+
+            // Update UI
+            scoreText.textContent = `${score} / ${TOTAL_ORBS}`;
+            healthBar.style.width = '100%';
+            timerText.textContent = `${timeLeft}s`;
+            modalOverlay.classList.add('hidden');
+
+            // Reset player position & physics
+            player.position.set(0, 1.5, 20);
+            playerVelocity.set(0, 0, 0);
+
+            // Re-populate objects
+            spawnCollectibles();
+
+            // Start Timer
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (!gameActive) return;
+                timeLeft--;
+                timerText.textContent = `${timeLeft}s`;
+
+                if (timeLeft <= 0) {
+                    endGame(false, "TIME EXPIRED!");
+                }
+            }, 1000);
+        }
+
+        function endGame(won, reason) {
+            gameActive = false;
+            clearInterval(timerInterval);
+
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('cyber_run_highscore', highScore);
+                highScoreText.textContent = highScore;
+            }
+
+            endTitle.textContent = won ? "MISSION COMPLETE!" : "MISSION FAILED!";
+            endTitle.className = `text-4xl font-orbitron font-black mb-2 ${won ? 'text-yellow-400 text-glow-gold' : 'text-pink-500 text-glow-magenta'}`;
+            endDesc.textContent = reason;
+            endScore.textContent = `${score} / ${TOTAL_ORBS}`;
+
+            startCard.classList.add('hidden');
+            endCard.classList.remove('hidden');
+            modalOverlay.classList.remove('hidden');
+
+            if (won) {
+                sound.playWin();
+            } else {
+                sound.playHit();
+            }
+        }
+
+        // --- Main Game Update Loop ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = Math.min(clock.getDelta(), 0.1);
+
+            if (gameActive && player) {
+                updatePlayerPhysics(delta);
+                updateCollectibles(delta);
+                updateHazards(delta);
+            }
+
+            // Idle Animations even when paused
+            const time = clock.getElapsedTime();
+            if (player) {
+                const halo = player.getObjectByName("halo");
+                if (halo) halo.rotation.y = time * 2;
+            }
+
+            // Camera Tracking Player Smoothly
+            if (player) {
+                const targetCamPos = player.position.clone().add(cameraOffset);
+                camera.position.lerp(targetCamPos, 0.08);
+                camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 1, 0)));
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // --- Physics & Collision Engine ---
+        function updatePlayerPhysics(delta) {
+            // Horizontal Direction Movement relative to world
+            const moveDir = new THREE.Vector3();
+            if (keys.forward) moveDir.z -= 1;
+            if (keys.backward) moveDir.z += 1;
+            if (keys.left) moveDir.x -= 1;
+            if (keys.right) moveDir.x += 1;
+
+            moveDir.normalize();
+
+            // Apply movement velocity
+            playerVelocity.x = moveDir.x * moveSpeed;
+            playerVelocity.z = moveDir.z * moveSpeed;
+
+            // Apply Gravity
+            playerVelocity.y += gravity * delta;
+
+            // Position Prediction
+            const nextPos = player.position.clone().addScaledVector(playerVelocity, delta);
+
+            // Bounding Box Collision with Ground / Platforms
+            const playerRadius = 0.7;
+            isGrounded = false;
+
+            platforms.forEach(plat => {
+                const box = new THREE.Box3().setFromObject(plat);
+
+                // Check vertical downward collision
+                if (
+                    player.position.x >= box.min.x - playerRadius &&
+                    player.position.x <= box.max.x + playerRadius &&
+                    player.position.z >= box.min.z - playerRadius &&
+                    player.position.z <= box.max.z + playerRadius
+                ) {
+                    if (player.position.y >= box.max.y && nextPos.y <= box.max.y + playerRadius) {
+                        playerVelocity.y = 0;
+                        nextPos.y = box.max.y + playerRadius;
+                        isGrounded = true;
+                    }
+                }
+            });
+
+            // Boundary constraints (Arena limits)
+            const mapLimit = 24;
+            nextPos.x = Math.max(-mapLimit, Math.min(mapLimit, nextPos.x));
+            nextPos.z = Math.max(-mapLimit, Math.min(mapLimit, nextPos.z));
+
+            // Fall off platform check
+            if (nextPos.y < -5) {
+                damagePlayer(100); // Immediate death if falling off arena
+                return;
+            }
+
+            // Update Player Position & Subtle Tilt Animation
+            player.position.copy(nextPos);
+            if (moveDir.length() > 0) {
+                playerBody.rotation.z = -moveDir.x * 0.15;
+                playerBody.rotation.x = moveDir.z * 0.15;
+            } else {
+                playerBody.rotation.z *= 0.8;
+                playerBody.rotation.x *= 0.8;
+            }
+        }
+
+        // --- Collectibles Animation & Pick Up ---
+        function updateCollectibles(delta) {
+            const time = clock.getElapsedTime();
+
+            for (let i = collectibles.length - 1; i >= 0; i--) {
+                const item = collectibles[i];
+                
+                // Rotation & Float hover animation
+                item.mesh.rotation.y += delta * 2;
+                item.mesh.position.y = item.basePositionY + Math.sin(time * 3 + i) * 0.25;
+
+                // Distance Collision Check
+                const dist = player.position.distanceTo(item.mesh.position);
+                if (dist < 1.5) {
+                    // Collect item
+                    scene.remove(item.mesh);
+                    collectibles.splice(i, 1);
+                    score++;
+                    scoreText.textContent = `${score} / ${TOTAL_ORBS}`;
+                    sound.playCoin();
+
+                    // Victory condition
+                    if (score >= TOTAL_ORBS) {
+                        endGame(true, "ALL ORBS COLLECTED!");
+                    }
+                }
+            }
+        }
+
+        // --- Moving Hazards Logic ---
+        function updateHazards(delta) {
+            hazards.forEach(h => {
+                h.mesh.rotation.y += delta * 3;
+                h.mesh.position.x += h.speed * h.dir;
+
+                if (h.mesh.position.x > h.endX) h.dir = -1;
+                if (h.mesh.position.x < h.startX) h.dir = 1;
+
+                // Player Hit Collision Check
+                const dist = player.position.distanceTo(h.mesh.position);
+                if (dist < 1.4) {
+                    damagePlayer(25);
+                    // Push player back
+                    playerVelocity.z += 8;
+                    playerVelocity.y += 4;
+                }
+            });
+        }
+
+        // --- Damage Handling ---
+        let canTakeDamage = true;
+        function damagePlayer(amount) {
+            if (!canTakeDamage) return;
+
+            health = Math.max(0, health - amount);
+            healthBar.style.width = `${health}%`;
+            sound.playHit();
+
+            // Invulnerability cooldown frame
+            canTakeDamage = false;
+            setTimeout(() => { canTakeDamage = true; }, 800);
+
+            // Flash Player RED
+            playerBody.material.emissive.setHex(0xff0000);
+            setTimeout(() => {
+                if (playerBody) playerBody.material.emissive.setHex(0x00f0ff);
+            }, 300);
+
+            if (health <= 0) {
+                endGame(false, "ENERGY DEPLETED!");
+            }
+        }
+
+        // --- Start Application ---
+        window.onload = function() {
+            initEngine();
+            setupControls();
+            animate();
+        };
+    </script>
+</body>
+</html>
